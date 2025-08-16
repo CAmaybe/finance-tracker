@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker with Speech Recognition</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .category-badge{display:inline-block;padding:0.25em 0.6em;font-size:0.75em;font-weight:700;line-height:1;text-align:center;white-space:nowrap;vertical-align:baseline;border-radius:0.25rem;color:white;opacity:0.8;}
+        .category-badge.Food{background-color:rgba(121,82,179,0.8)}.category-badge.Transport{background-color:rgba(13,110,253,0.8)}.category-badge.Entertainment{background-color:rgba(214,51,132,0.8)}.category-badge.Shopping{background-color:rgba(32,201,151,0.8)}.category-badge.Utilities{background-color:rgba(253,126,20,0.8)}.category-badge.Rent{background-color:rgba(220,53,69,0.8)}.category-badge.Medical{background-color:rgba(13,202,240,0.8)}.category-badge.Education{background-color:rgba(25,135,84,0.8)}.category-badge.Other{background-color:rgba(108,117,125,0.8)}
+        .chart-container {position:relative; height:250px; margin-bottom:20px;}
+        #speechFeedback{background-color:rgba(var(--bs-dark-rgb),.7);border-left:4px solid var(--bs-info)}
+        .progress{height:10px}
+        .progress-bar{transition:width .5s ease}
+        .balance-display,.budget-display{font-weight:700}
+        .mic-active{background-color:var(--bs-primary)!important;border-color:var(--bs-primary)!important}
+        @keyframes highlightRow{0%{background-color:rgba(var(--bs-success-rgb),.3)}100%{background-color:transparent}}
+        .highlight-row{animation:highlightRow 1.5s ease-out;}
+        .shadow-sm{box-shadow:0 .125rem .25rem rgba(0,0,0,.075)!important}
+        .hover-shadow:hover{box-shadow:0 .5rem 1rem rgba(0,0,0,.15)!important;transition:box-shadow .3s ease-in-out}
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="card mb-4">
+            <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                <div class="w-25"><!-- Empty div for flex spacing --></div>
+                <h1 class="text-center mb-0 w-50">Expense Tracker</h1>
+                <div class="w-25 text-end">
+                    <!-- Clear All button removed -->
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Balance and Budget Section -->
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title mb-0">Current Balance</h5>
+                                <h2 class="balance-display">₹ <span id="currentBalance">0</span></h2>
+                                <div class="d-flex gap-2 mt-3">
+                                    <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#balanceModal">
+                                        <i class="fas fa-edit"></i> Edit Balance
+                                    </button>
+                                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#incomeModal">
+                                        <i class="fas fa-plus"></i> Add Income
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">Monthly Budget</h5>
+                                <h2 class="budget-display">₹ <span id="monthlyBudget">0</span></h2>
+                                <div class="progress mb-2">
+                                    <div id="budgetProgress" class="progress-bar bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <small class="text-muted">Spent: ₹ <span id="spentAmount">0</span></small>
+                                    <small class="text-muted">Remaining: ₹ <span id="remainingBudget">0</span></small>
+                                </div>
+                                <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#budgetModal">
+                                    <i class="fas fa-edit"></i> Edit Budget
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Expense Section -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Add New Expense</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="form-floating mb-3">
+                                    <input type="number" class="form-control" id="expenseAmount" placeholder="Amount">
+                                    <label for="expenseAmount">Amount (₹)</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating mb-3">
+                                    <select class="form-select" id="expenseCategory">
+                                        <option selected disabled value="">Choose category</option>
+                                        <option value="Food">Food</option>
+                                        <option value="Transport">Transport</option>
+                                        <option value="Entertainment">Entertainment</option>
+                                        <option value="Shopping">Shopping</option>
+                                        <option value="Utilities">Utilities</option>
+                                        <option value="Rent">Rent</option>
+                                        <option value="Medical">Medical</option>
+                                        <option value="Education">Education</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                    <label for="expenseCategory">Category</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-floating mb-3">
+                                    <input type="date" class="form-control" id="expenseDate" placeholder="Date" value="">
+                                    <label for="expenseDate">Date</label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="d-grid gap-2 d-flex mb-3">
+                                    <button id="addExpenseBtn" class="btn btn-primary flex-grow-1">
+                                        <i class="fas fa-plus"></i> Add Expense
+                                    </button>
+                                    <button id="speechBtn" class="btn btn-primary">
+                                        <i class="fas fa-microphone"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div id="speechFeedback" class="mb-3 p-2 rounded d-none">
+                                    <p class="mb-0"><strong>Speech Recognition:</strong> <span id="speechText"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expense History Section -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Expense History</h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                Filter
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('all')">All</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Food')">Food</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Transport')">Transport</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Entertainment')">Entertainment</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Shopping')">Shopping</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Utilities')">Utilities</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Rent')">Rent</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Medical')">Medical</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Education')">Education</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterExpenses('Other')">Other</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Amount</th>
+                                        <th>Category</th>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expenseTable">
+                                    <!-- Expenses will be added here dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="noExpenses" class="text-center p-4">
+                            <i class="fas fa-receipt fa-3x mb-3 text-muted"></i>
+                            <p class="text-muted">No expenses recorded yet</p>
+                        </div>
+                        
+                        <div id="chartSection" class="mt-4 mb-4">
+                          <div class="card shadow-sm">
+                            <div class="card-header">
+                              <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Expense Visualization</h5>
+                                <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCharts" aria-expanded="false" aria-controls="collapseCharts">
+                                  <i class="fas fa-eye"></i>
+                                </button>
+                              </div>
+                            </div>
+                            <div class="collapse" id="collapseCharts">
+                              <div class="card-body">
+                                <ul class="nav nav-tabs mb-3" id="chartTabs" role="tablist">
+                                  <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="category-tab" data-bs-toggle="tab" data-bs-target="#category-panel" type="button" role="tab" aria-controls="category-panel" aria-selected="true">
+                                      <i class="fas fa-chart-pie me-1"></i> Spending Breakdown
+                                    </button>
+                                  </li>
+
+                                  <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="category-bar-tab" data-bs-toggle="tab" data-bs-target="#category-bar-panel" type="button" role="tab" aria-controls="category-bar-panel" aria-selected="false">
+                                      <i class="fas fa-chart-bar me-1"></i> Category Comparison
+                                    </button>
+                                  </li>
+                                  <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="budget-tab" data-bs-toggle="tab" data-bs-target="#budget-panel" type="button" role="tab" aria-controls="budget-panel" aria-selected="false">
+                                      <i class="fas fa-wallet me-1"></i> Budget Utilization
+                                    </button>
+                                  </li>
+<!-- Recurring Expenses tab removed -->
+                                </ul>
+                                
+                                <div class="tab-content" id="chartTabContent">
+                                  <!-- Category Pie Chart -->
+                                  <div class="tab-pane fade show active" id="category-panel" role="tabpanel" aria-labelledby="category-tab">
+                                    <div class="chart-container">
+                                      <canvas id="categoryChart"></canvas>
+                                    </div>
+                                    <div id="noCategoryData" class="text-center p-3 d-none">
+                                      <p class="text-muted">No data to display</p>
+                                    </div>
+                                    <p class="text-muted small mt-2">This pie chart shows the proportion of your spending across different categories, helping you identify where most of your money is going.</p>
+                                  </div>
+                                  
+
+                                  <!-- Category Bar Chart -->
+                                  <div class="tab-pane fade" id="category-bar-panel" role="tabpanel" aria-labelledby="category-bar-tab">
+                                    <div class="chart-container">
+                                      <canvas id="categoryBarChart"></canvas>
+                                    </div>
+                                    <div id="noCategoryBarData" class="text-center p-3 d-none">
+                                      <p class="text-muted">No data to display</p>
+                                    </div>
+                                    <p class="text-muted small mt-2">This bar chart compares spending across different categories, making it easier to see which categories have the highest expenses.</p>
+                                  </div>
+                                  
+                                  <!-- Budget Utilization -->
+                                  <div class="tab-pane fade" id="budget-panel" role="tabpanel" aria-labelledby="budget-tab">
+                                    <div class="chart-container">
+                                      <canvas id="budgetChart"></canvas>
+                                    </div>
+                                    <div id="noBudgetData" class="text-center p-3 d-none">
+                                      <p class="text-muted">You need to set a budget to view this chart</p>
+                                    </div>
+                                    <p class="text-muted small mt-2">This gauge chart shows how much of your monthly budget has been utilized, helping you stay within your spending limits.</p>
+                                  </div>
+                                  
+                                  <!-- Recurring Expenses panel removed -->
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div class="mt-4 text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-info" id="importBtn">
+                                    <i class="fas fa-upload"></i> Import
+                                </button>
+                                <button class="btn btn-success" id="exportBtn">
+                                    <i class="fas fa-download"></i> Export
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Balance Modal -->
+    <div class="modal fade" id="balanceModal" tabindex="-1" aria-labelledby="balanceModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="balanceModalLabel">Update Balance</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-floating mb-3">
+                        <input type="number" class="form-control" id="newBalance" placeholder="New Balance">
+                        <label for="newBalance">New Balance (₹)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="updateBalanceBtn">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budget Modal -->
+    <div class="modal fade" id="budgetModal" tabindex="-1" aria-labelledby="budgetModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="budgetModalLabel">Update Monthly Budget</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-floating mb-3">
+                        <input type="number" class="form-control" id="newBudget" placeholder="New Budget">
+                        <label for="newBudget">New Monthly Budget (₹)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="updateBudgetBtn">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budget Alert Modal -->
+    <div class="modal fade" id="budgetAlertModal" tabindex="-1" aria-labelledby="budgetAlertModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="budgetAlertModalLabel">Budget Alert</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-exclamation-triangle fa-4x text-warning"></i>
+                    </div>
+                    <p class="h5 text-center">You have exceeded your monthly budget!</p>
+                    <p class="text-center">Consider adjusting your budget or reducing expenses for the remainder of the month.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#budgetModal">Adjust Budget</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Balance Warning Modal -->
+    <div class="modal fade" id="balanceWarningModal" tabindex="-1" aria-labelledby="balanceWarningModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="balanceWarningModalLabel">Balance Alert</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-exclamation-triangle fa-4x text-warning"></i>
+                    </div>
+                    <p class="h5 text-center">Insufficient Balance Warning</p>
+                    <p class="text-center">You don't have enough balance for this expense. Please add funds or reduce the expense amount.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#balanceModal">Update Balance</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteConfirmModalLabel">Delete Expense</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-trash fa-4x text-danger"></i>
+                    </div>
+                    <p class="h5 text-center">Confirm Deletion</p>
+                    <p class="text-center">Are you sure you want to delete this expense?</p>
+                    <p class="text-center">Should the amount be returned to your balance?</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="deleteYesNoReturn">Delete Only</button>
+                    <button type="button" class="btn btn-success" id="deleteYesReturn">Delete & Return Amount</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Options Modal -->
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exportModalLabel">Export Options</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-file-export fa-4x text-primary"></i>
+                    </div>
+                    <p class="h5 text-center">Choose Export Format</p>
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="button" class="btn btn-lg btn-outline-primary" onclick="exportExpensesCSV()">
+                            <i class="fas fa-file-csv me-2"></i>CSV Format
+                        </button>
+                        <button type="button" class="btn btn-lg btn-outline-success" onclick="exportExpensesExcel()">
+                            <i class="fas fa-file-excel me-2"></i>Excel Format
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Options Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">Import Options</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-file-import fa-4x text-info"></i>
+                    </div>
+                    <p class="h5 text-center">Choose Import Format</p>
+                    <p class="text-center text-muted mb-4">The file must contain columns for Description, Amount, Category, and Date</p>
+                    <div class="d-grid gap-2">
+                        <label class="btn btn-lg btn-outline-primary">
+                            <i class="fas fa-file-csv me-2"></i>CSV Format
+                            <input type="file" id="csvImportFile" accept=".csv" class="d-none" onchange="handleFileImport(event)">
+                        </label>
+                        <label class="btn btn-lg btn-outline-success">
+                            <i class="fas fa-file-excel me-2"></i>Excel Format
+                            <input type="file" id="excelImportFile" accept=".xlsx, .xls" class="d-none" onchange="handleFileImport(event)">
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Income Modal -->
+    <div class="modal fade" id="incomeModal" tabindex="-1" aria-labelledby="incomeModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="incomeModalLabel">Add Income</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-coins fa-4x text-warning"></i>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="incomeDescription" placeholder="Description (Optional)">
+                        <label for="incomeDescription">Description (Optional)</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="number" class="form-control" id="incomeAmount" placeholder="Amount">
+                        <label for="incomeAmount">Amount (₹)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="addIncomeBtn">Add Income</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/speech.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/export.js') }}"></script>
+</body>
+</html>
